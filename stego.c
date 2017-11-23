@@ -12,9 +12,9 @@ char binaryToGray(char c){
 }
 
 void printbits(char v) {
-    int i;
-    for(i = 7; i >= 0; i--) putchar('0' + ((v >> i) & 1));
-    putchar(' ');
+  int i;
+  for(i = 7; i >= 0; i--) putchar('0' + ((v >> i) & 1));
+  putchar(' ');
 }
 
 UINT pow(UINT base, UINT power){
@@ -22,10 +22,6 @@ UINT pow(UINT base, UINT power){
   return base*pow(base,power-1);
 }
 
-
-UINT encode_plane(UINT plane, int sectorSize){
-  return plane;
-}
 
 int calc_noise(UINT plane){
   int rows[8];
@@ -62,12 +58,27 @@ int count_ones(int num){
   return ones;
 }
 
+void bmp_diff(BMP *pic1, BMP *pic2, BMP *out){
+  UCHAR pixels1[3], pixels2[3];
+  UINT width = BMP_GetWidth(pic1);
+  UINT height = BMP_GetHeight(pic2);
+  UINT i, j;
+  for(i=0;i<width;++i){
+    for(j=0;j<height;++j){
+      BMP_GetPixelRGB(pic1, i, j, &pixels1[0], &pixels1[1], &pixels1[2]);
+      BMP_GetPixelRGB(pic2, i, j, &pixels2[0], &pixels2[1], &pixels2[2]);
+      BMP_SetPixelRGB(out, i, j, pixels1[0]-pixels2[0], pixels1[1]-pixels2[1], pixels1[2]-pixels2[2]); 
+    }
+  }
+}
+
+
 
 void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize){
   UCHAR sector[sectorSize][sectorSize][3];
   UINT planes[8][3];      //There are 8 bitplanes regardless of sector size
-                          //Implementation should be changed for bigger sector
-                          //sizes
+  //Implementation should be changed for bigger sector
+  //sizes
   UINT chessPattern;
   UCHAR pixels[3];
   UINT i,j,k,l;
@@ -88,7 +99,7 @@ void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize){
       }
     }
   }
-  
+
   for(i=0;i<8;++i){
     for(j=0;j<3;++j){
       if(calc_noise(planes[i][j])>40){
@@ -127,7 +138,7 @@ void encrypt_picture(BMP *bmp, UINT sectorSize){
 }
 
 
-int main(){
+int main(int argc, char *argv[]){
   BMP* bmp = BMP_ReadFile("airplane.bmp");
   srand(time(NULL));
   if(BMP_GetError() != BMP_OK){
@@ -136,11 +147,17 @@ int main(){
   BMP_CHECK_ERROR(stdout, -1);
 
   printf("Height: %d, Width: %d, Depth in bits: %d\n", BMP_GetHeight(bmp), BMP_GetWidth(bmp), BMP_GetDepth(bmp));
-  
 
-  encrypt_picture(bmp, 8);
-  
-  
+  if(argc==4){
+    BMP* pic1 = BMP_ReadFile(argv[1]);
+    BMP* pic2 = BMP_ReadFile(argv[2]);
+    BMP* out = BMP_Create(BMP_GetWidth(pic1), BMP_GetHeight(pic1), 24);
+    bmp_diff(pic1,pic2,out);
+    BMP_WriteFile(out, argv[3]);
+  }
+  else  encrypt_picture(bmp, 8);
+
+
   BMP_WriteFile(bmp, "airplane.bmp");
   BMP_CHECK_ERROR(stdout, -1);
   BMP_Free(bmp);
