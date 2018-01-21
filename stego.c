@@ -87,6 +87,26 @@ void bmp_diff(BMP *pic1, BMP *pic2, BMP *out){
 }
 
 
+//Takes a set of planes and a location and writes the planes there
+void writePlanesToSector(BMP *bmp, UINT x, UINT y, UINT sectorSize, UINT planes[8][3]){
+  UCHAR pixels[3];
+  UINT i,j,k,l;
+  for(i=0;i<sectorSize;++i){
+    for(j=0;j<sectorSize;++j){
+      pixels[0]=0;
+      pixels[1]=0;
+      pixels[2]=0;
+      for(k=0;k<3;++k){
+        for(l=0;l<8;++l){
+          pixels[k]+=planes[l][k]/UINTPOW*pow(2,l);
+          planes[l][k]=planes[l][k]<<(unsigned long)1;
+        }
+      }
+      BMP_SetPixelRGB(bmp, x+i, y+j, pixels[0], pixels[1], pixels[2]); 
+    }
+  }
+}
+
 
 void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize){
   UCHAR sector[sectorSize][sectorSize][3];
@@ -119,29 +139,14 @@ void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize){
   //!!!Should be refactored
   for(i=0;i<8;++i){
     for(j=0;j<3;++j){
-      if(calc_noise(planes[i][j])>40){
-        planes[i][j]= rand() ^ chessPattern;
+      if(calc_noise(planes[i][j])>=40){
+        planes[i][j]= rand()*pow(2,32)+rand(); //^ chessPattern;
       }
     }
   }
-
-
-  //Translate from bitplanes to pixels and rewrite the picture
-  for(i=0;i<sectorSize;++i){
-    for(j=0;j<sectorSize;++j){
-      pixels[0]=0;
-      pixels[1]=0;
-      pixels[2]=0;
-      for(k=0;k<3;++k){
-        for(l=0;l<8;++l){
-          pixels[k]+=planes[l][k]/UINTPOW*pow(2,l);
-          planes[l][k]=planes[l][k]<<(unsigned long)1;
-        }
-      }
-      BMP_SetPixelRGB(bmp, x+i, y+j, pixels[0], pixels[1], pixels[2]); 
-    }
-  }
+  writePlanesToSector(bmp, x, y, sectorSize, planes);
 }
+
 
 //General picture wrapper that breaks down the picture into suitable
 //sizes for computation
@@ -158,31 +163,41 @@ void encrypt_picture(BMP *bmp, UINT sectorSize){
 
 
 int main(int argc, char *argv[]){
-  BMP* bmp = BMP_ReadFile("airplane.bmp");
   srand(time(NULL));
-  if(BMP_GetError() != BMP_OK){
-    printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
-  }
-  BMP_CHECK_ERROR(stdout, -1);
-
-  printf("Height: %d, Width: %d, Depth in bits: %d\n", BMP_GetHeight(bmp), BMP_GetWidth(bmp), BMP_GetDepth(bmp));
-  
   //There are 3 arguments given, comparing differences.
   if(argc==4){
     BMP* pic1 = BMP_ReadFile(argv[1]);
     BMP* pic2 = BMP_ReadFile(argv[2]);
     BMP* out = BMP_Create(BMP_GetWidth(pic1), BMP_GetHeight(pic1), 24);
     bmp_diff(pic1,pic2,out);
+    if(BMP_GetError() != BMP_OK){
+      printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
+    }
+    BMP_CHECK_ERROR(stdout, -1);
     BMP_WriteFile(out, argv[3]);
     BMP_Free(pic1);
     BMP_Free(pic2);
     BMP_Free(out);
   }
+  else if(argc==3){
+    BMP* bmp = BMP_ReadFile(argv[1]);
+    encrypt_picture(bmp, 8);
+    if(BMP_GetError() != BMP_OK){
+      printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
+    }
+    BMP_CHECK_ERROR(stdout, -1);
+    BMP_WriteFile(bmp, argv[1]);
+    BMP_Free(bmp);
+  }
   //Encrypting the file as per standard stego
   else{  
+    BMP* bmp = BMP_ReadFile(argv[1]);
     encrypt_picture(bmp, 8);
-    BMP_WriteFile(bmp, "airplane.bmp");
+    if(BMP_GetError() != BMP_OK){
+      printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
+    }
     BMP_CHECK_ERROR(stdout, -1);
+    BMP_WriteFile(bmp, argv[1]);
     BMP_Free(bmp);
   }
   return 0;
