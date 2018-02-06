@@ -88,18 +88,18 @@ void bmp_diff(BMP *pic1, BMP *pic2, BMP *out){
 
 
 //Takes a set of planes and a location and writes the planes there
-void writePlanesToSector(BMP *bmp, UINT x, UINT y, UINT sectorSize, UINT planes[8][3]){
+void writePlanesToSector(BMP *bmp, UINT x, UINT y, UINT **planes){
   UCHAR pixels[3];
   UINT i,j,k,l;
-  for(i=0;i<sectorSize;++i){
-    for(j=0;j<sectorSize;++j){
+  for(i=0;i<8;++i){
+    for(j=0;j<8;++j){
       pixels[0]=0;
       pixels[1]=0;
       pixels[2]=0;
       for(k=0;k<3;++k){
         for(l=0;l<8;++l){
-          pixels[k]+=planes[l][k]/UINTPOW*pow(2,l);
-          planes[l][k]=planes[l][k]<<(unsigned long)1;
+          pixels[k]+=planes[l%8][k+l/8]/UINTPOW*pow(2,l);
+          planes[l][k]=planes[l%8][k+l/8]<<(unsigned long)1;
         }
       }
       BMP_SetPixelRGB(bmp, x+i, y+j, pixels[0], pixels[1], pixels[2]); 
@@ -108,21 +108,17 @@ void writePlanesToSector(BMP *bmp, UINT x, UINT y, UINT sectorSize, UINT planes[
 }
 
 
-void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize){
-  UCHAR sector[sectorSize][sectorSize][3];
-  UINT planes[8][3];      //There are 8 bitplanes regardless of sector size
-  //Implementation should be changed for bigger sector
-  //sizes
-  UINT chessPattern;
+UINT **readSS(BMP *bmp, UINT x, UINT y){
+  UINT **planes;
+  planes = (UINT **)calloc(8,sizeof(UINT *));
   UCHAR pixels[3];
   UINT i,j,k,l;
-
-
-
-  //Read the picture and store it into bitplanes
-  for(i=0;i<sectorSize;++i){
-    for(j=0;j<sectorSize;++j){
-      chessPattern=(chessPattern<<(unsigned long)1)+(j+1)%2;
+  for(i=0;i<8;++i){
+    planes[i]= (UINT *)calloc(3, sizeof(UINT));
+  }
+  
+  for(i=0;i<8;++i){
+    for(j=0;j<8;++j){
       BMP_GetPixelRGB(bmp, x+i, y+j, &pixels[0], &pixels[1], &pixels[2]);
       for(k=0;k<3;++k){
         for(l=0;l<8;++l){
@@ -133,18 +129,26 @@ void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize){
       }
     }
   }
-  
+  return planes;
+}
 
-  //Encrypts the data, currently with a random data pattern
-  //!!!Should be refactored
-  for(i=0;i<8;++i){
-    for(j=0;j<3;++j){
-      if(calc_noise(planes[i][j])>=40){
-        planes[i][j]= rand()*pow(2,32)+rand(); //^ chessPattern;
-      }
-    }
+void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize){
+  UINT ***sector;
+  UINT numSS = sectorSize*sectorSize/64;
+  if((sector = (UINT ***)malloc(numSS*sizeof(UINT **)))==NULL){
+    fprintf(stdout, "%s","Not Enough memory");
   }
-  writePlanesToSector(bmp, x, y, sectorSize, planes);
+  UINT i;
+  //reading sector into 8x8 subs for efficiency
+  for(i=0;i<numSS;++i){
+   sector[i] = readSS(bmp, x+8*(i%(sectorSize/8)), y+8*(i/(sectorSize/8)));
+  }
+
+
+  //writing sector into 8x8 subs for efficiency
+  for(i=0;i<numSS;++i){
+    writePlanesToSector(bmp, x+8*(i%(sectorSize/8)), y+8*(i/(sectorSize/8)), sector[i]);
+  }
 }
 
 
