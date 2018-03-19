@@ -1,0 +1,30 @@
+<html>
+	<head>
+		<title>Show Image</title>
+	</head>
+	<body>
+		<div style='float:left'>
+			<h2>Normal</h2>
+			<form action ="download" method = "POST" enctype="multipart/form-data" style='display:inline;'>
+				<img src="<%= @carrier_filename %>" />
+				<input type = "hidden" name = "file" value = "<%= @carrier_filename %>" />
+				<input type = "submit" value = "download"/>
+			</form>
+		</div>
+		<div style='float:left'>
+			<h2>Encoded</h2>
+			<form action ="download" method = "POST" enctype="multipart/form-data" style='display:inline;'>
+				<img src="<%= @carrier_filename %>2" />
+				<input type = "hidden" name = "file" value = "<%= @carrier_filename %>2" />
+				<input type = "submit" value = "download"/>
+			</form>
+		</div>
+		<div style='float:left'>
+			<h2>Difference</h2>
+			<form action ="download" method = "POST" enctype="multipart/form-data" style='display:inline;'>
+				<img src="<%= @carrier_filename %>3" />
+				<input type = "hidden" name = "file" value = "<%= @carrier_filename %>3" />
+				<input type = "submit" value = "download"/>
+		</div>
+	</body>
+</html>
