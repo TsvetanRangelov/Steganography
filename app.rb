@@ -1,3 +1,5 @@
+require 'rmagick'
+include Magick
 require 'sinatra'
 
 class HelloWorldApp < Sinatra::Base
@@ -15,7 +17,8 @@ class HelloWorldApp < Sinatra::Base
 		File.open("./public/#{@message_filename}", 'wb') do |f|
 			f.write(message_file.read)
 		end
-		system ( "./c_stego/s.sh #{@carrier_filename} #{@message_filename}")
+		encoded_ok = system ( "./c_stego/s.sh #{@carrier_filename} #{@message_filename} dump.txt")
+		print encoded_ok
 		system ( "./c_stego/diff.sh #{@carrier_filename} #{@carrier_filename}2 #{@carrier_filename}3")
 		erb :show_image
 	end

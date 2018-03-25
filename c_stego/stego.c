@@ -95,7 +95,7 @@ int calc_noise(UINT plane){
 void bmp_diff(BMP *pic1, BMP *pic2, BMP *out){
 	UCHAR pixels1[3], pixels2[3];
 	UINT width = BMP_GetWidth(pic1);
-	UINT height = BMP_GetHeight(pic2);
+	UINT height = BMP_GetHeight(pic1);
 	UINT i, j;
 	for(i=0;i<width;++i){
 		for(j=0;j<height;++j){
@@ -206,6 +206,7 @@ void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize, int threshold){
 	UINT ***sector;
 	UINT numSS = sectorSize*sectorSize/64;
 	if((sector = (UINT ***)malloc(numSS*sizeof(UINT **)))==NULL){
+		exit(EXIT_FAILURE);
 		fprintf(stdout, "%s","Not Enough memory");
 	}
 	UINT i;
@@ -243,6 +244,7 @@ void sector_noise(BMP *bmp, UINT x, UINT y, UINT sectorSize, int *h_noise){
 	UINT ***sector;
 	UINT numSS = sectorSize*sectorSize/64;
 	if((sector = (UINT ***)malloc(numSS*sizeof(UINT **)))==NULL){
+		exit(EXIT_FAILURE);
 		fprintf(stdout, "%s","Not Enough memory");
 	}
 	UINT i;
@@ -270,14 +272,14 @@ int find_threshold(BMP *bmp, UINT sectorSize){
 	int *h_noise = (int *)calloc(112,sizeof(int));
 	histogram_noise(bmp, 8, h_noise);
 	int i, sum=0;
-	for(i=111;i>0;++i){
+	for(i=111;i>0;--i){
 		sum+=h_noise[i];
-		printf("%d", i);
-		if(sum>filelen/8){
+		if(sum>filelen){
 			if(i>56) return 56;
 			return i;
 		}
 	}
+	return -1;
 }
 
 
@@ -294,7 +296,7 @@ int put_decoded(UINT plane, char *filename){
 			return 1;
 		}
 	}
-	//printf("%.7s", b);
+	printf("%.7s", b);
 	return 0;
 }
 
@@ -341,41 +343,69 @@ int decode(BMP *bmp, UINT sectorSize, int threshold, char *filename){
 	return 0;	
 }
 
+void nthplane(BMP *bmp, int n){
+	UCHAR pixels[3];
+	UINT width = BMP_GetWidth(bmp);
+	UINT height = BMP_GetHeight(bmp);
+	UINT i, j;
+	for(i=0;i<width;++i){
+		for(j=0;j<height;++j){
+			BMP_GetPixelRGB(bmp, i, j, &pixels[0], &pixels[1], &pixels[2]);
+			BMP_SetPixelRGB(bmp, i, j, ((pixels[0]/pow(2,n))%2)*255, ((pixels[1]/pow(2,n))%2)*255, ((pixels[2]/pow(2,n))%2)*255); 
+		}
+	}
+
+}
+
 
 int main(int argc, char *argv[]){
 	srand(time(NULL));
 	//There are 3 arguments given, comparing differences.
-	if(argc==4){
-		BMP* pic1 = BMP_ReadFile(argv[1]);
-		BMP* pic2 = BMP_ReadFile(argv[2]);
+	if(!strcmp(argv[1],"diff")){
+		BMP* pic1 = BMP_ReadFile(argv[2]);
+		BMP* pic2 = BMP_ReadFile(argv[3]);
 		BMP* out = BMP_Create(BMP_GetWidth(pic1), BMP_GetHeight(pic1), 24);
 		bmp_diff(pic1,pic2,out);
 		if(BMP_GetError() != BMP_OK){
 			printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
 		}
 		BMP_CHECK_ERROR(stdout, -1);
-		BMP_WriteFile(out, argv[3]);
+		BMP_WriteFile(out, argv[4]);
 		BMP_Free(pic1);
 		BMP_Free(pic2);
 		BMP_Free(out);
 	}
-
-	//Encrypting the file as per standard stego
-	else{ 
-		if(readFile(argv[2])){
-			exit(0);
+	else if(!strcmp(argv[1], "nth")){
+		BMP* bmp = BMP_ReadFile(argv[2]);
+		nthplane(bmp, 7);
+		if(BMP_GetError() != BMP_OK){
+			printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
 		}
-		BMP* bmp = BMP_ReadFile(argv[1]);
+		BMP_CHECK_ERROR(stdout, -1);
+		BMP_WriteFile(bmp, argv[3]);
+		BMP_Free(bmp);
+		
+	}
+	//Encrypting the file as per standard stego
+	else if(!strcmp(argv[1],"enc")){ 
+		if(readFile(argv[3])){
+			exit(EXIT_SUCCESS);
+		}
+		BMP* bmp = BMP_ReadFile(argv[2]);
 		int threshold = find_threshold(bmp, 8);
-		printf("%d", threshold);
+		if(threshold == -1){
+			exit(EXIT_FAILURE);
+		}
 		encrypt_picture(bmp, 8, threshold);
 		if(decode(bmp, 8, threshold, "byte")==0)
 			printf("%s\n", "There is trouble decoding the file. End not reached");
 		if(BMP_GetError() != BMP_OK)
 			printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
 		BMP_CHECK_ERROR(stdout, -1);
-		BMP_WriteFile(bmp, strcat(argv[1],"2"));
+		BMP_WriteFile(bmp, strcat(argv[2],"2"));
 		BMP_Free(bmp);
+	}
+	else if(!strcmp(argv[1], "dec")){
 	}
 	return 0;
 }
