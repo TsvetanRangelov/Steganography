@@ -6,6 +6,19 @@ class HelloWorldApp < Sinatra::Base
 	get '/' do
 		erb :form
 	end
+	post '/decode_image' do
+		@image_filename = params[:image_file][:filename]
+		image_file = params[:image_file][:tempfile]
+		sectorSize = params[:sectorSize].to_i
+		threshold = params[:threshold].to_i
+		File.open("./public/#{@image_filename}", 'wb') do |f|
+			f.write(image_file.read)
+		end
+		system("./c_stego/stego dec ./public/#{@image_filename} #{threshold} #{sectorSize} >./public/result.txt")
+		@result_name = "result.txt"
+		@result = File.read("./public/result.txt")
+		erb :show_decoded
+	end
 	post '/encode_image' do
 		@message_filename = params[:message_file][:filename]
 		message_file = params[:message_file][:tempfile]
