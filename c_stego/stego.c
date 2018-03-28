@@ -8,11 +8,15 @@
 //Max power for a ULONG, helper const = 2^63
 const UINT UINTPOW = 9223372036854775808;
 
+//Flag for whether or not to rewind and encode a file again
+int toRewind = 0;
+
+
 //Chess pattern, helper for xor
 const UINT CHESSPATTERN = 12273903644374837845;
 
 //Returns the GrayCode encoding for a picture
-char binaryToGray(char c){
+UCHAR binaryToGray(UCHAR c){
 	return c ^ (c >> 1);
 }
 
@@ -173,7 +177,7 @@ UINT put_message_in_plane(int threshold){
 		char b=nextByte();
 		if(endReached){
 			b =3; // End of text character, unusable on non-binary files
-			rewindFile();
+			if(toRewind) rewindFile(); //Flag is set during execution
 		}
 		newplane=(newplane<<(unsigned long)8);
 		newplane+=b;
@@ -192,7 +196,7 @@ UINT **encode_data(UINT **sector, int threshold){
 			else
 				if(calc_noise(sector[i][j])>threshold){
 					sector[i][j]=put_message_in_plane(threshold);
-					if(calc_noise(sector[i][j]) <= threshold) prevByte(7);
+					if(calc_noise(sector[i][j]) <= threshold)	prevByte(7);
 				}
 		}
 	}
@@ -218,7 +222,6 @@ void encrypt_sector(BMP *bmp, UINT x, UINT y, UINT sectorSize, int threshold){
 	for(i=0;i<numSS;++i){
 		sector[i] = encode_data(sector[i], threshold);
 	}
-
 	//writing sector into 8x8 subs for efficiency
 	for(i=0;i<numSS;++i){
 		writePlanesToSector(bmp, x+8*(i%(sectorSize/8)), y+8*(i/(sectorSize/8)), sector[i]);
@@ -269,13 +272,14 @@ void histogram_noise(BMP *bmp, UINT sectorSize, int *h_noise){
 
 // Find the threshold needed to store the file
 int find_threshold(BMP *bmp, UINT sectorSize){
+	if(toRewind) return 56;
 	int *h_noise = (int *)calloc(112,sizeof(int));
 	histogram_noise(bmp, 8, h_noise);
 	int i, sum=0;
 	for(i=111;i>0;--i){
 		sum+=h_noise[i];
 		if(sum>filelen){
-			if(i>56) return 56;
+			if(i>56) return 56;			
 			return i;
 		}
 	}
@@ -286,7 +290,7 @@ int find_threshold(BMP *bmp, UINT sectorSize){
 //Encodes a message in a plane
 int put_decoded(UINT plane, char *filename){
 	int i, j;
-	if(plane > UINTPOW/8){
+	if(plane > UINTPOW){
 		plane ^= CHESSPATTERN;
 	}
 	char *b = strrev((char *)&plane);
@@ -351,6 +355,9 @@ void nthplane(BMP *bmp, int n){
 	for(i=0;i<width;++i){
 		for(j=0;j<height;++j){
 			BMP_GetPixelRGB(bmp, i, j, &pixels[0], &pixels[1], &pixels[2]);
+			pixels[0]=binaryToGray(pixels[0]);
+			pixels[1]=binaryToGray(pixels[1]);
+			pixels[2]=binaryToGray(pixels[2]);
 			BMP_SetPixelRGB(bmp, i, j, ((pixels[0]/pow(2,n))%2)*255, ((pixels[1]/pow(2,n))%2)*255, ((pixels[2]/pow(2,n))%2)*255); 
 		}
 	}
@@ -377,7 +384,7 @@ int main(int argc, char *argv[]){
 	}
 	else if(!strcmp(argv[1], "nth")){
 		BMP* bmp = BMP_ReadFile(argv[2]);
-		nthplane(bmp, 7);
+		nthplane(bmp, atoi(argv[4]));
 		if(BMP_GetError() != BMP_OK){
 			printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
 		}
@@ -387,25 +394,47 @@ int main(int argc, char *argv[]){
 		
 	}
 	//Encrypting the file as per standard stego
-	else if(!strcmp(argv[1],"enc")){ 
+	else if(!strcmp(argv[1],"enc")){
 		if(readFile(argv[3])){
 			exit(EXIT_SUCCESS);
 		}
+		int sectorSize = atoi(argv[5]);
+		if((argc > 6) && !strcmp(argv[6],"rew")) toRewind = 1;
 		BMP* bmp = BMP_ReadFile(argv[2]);
-		int threshold = find_threshold(bmp, 8);
+		int threshold = find_threshold(bmp, sectorSize);
 		if(threshold == -1){
 			exit(EXIT_FAILURE);
 		}
-		encrypt_picture(bmp, 8, threshold);
-		if(decode(bmp, 8, threshold, "byte")==0)
+		while(!endReached && !toRewind){
+			bmp = BMP_ReadFile(argv[2]);
+			rewindFile();
+			encrypt_picture(bmp, sectorSize, threshold);
+			--threshold;
+		}
+		if(toRewind){
+			threshold = 56;
+			encrypt_picture(bmp, sectorSize, threshold);
+			--threshold;
+		}
+		printf("%d", threshold+1);
+
+		if(BMP_GetError() != BMP_OK)
+			printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
+		BMP_CHECK_ERROR(stdout, -1);
+		BMP_WriteFile(bmp, argv[4]);
+		BMP_Free(bmp);
+	}
+	else if(!strcmp(argv[1], "dec")){
+		BMP *bmp = BMP_ReadFile(argv[2]);
+		int threshold = atoi(argv[3]);
+		int sectorSize = atoi(argv[4]);
+		if(decode(bmp, sectorSize, threshold, "byte")==0)
 			printf("%s\n", "There is trouble decoding the file. End not reached");
 		if(BMP_GetError() != BMP_OK)
 			printf("%s\n%s", "There is trouble reading the file", BMP_GetErrorDescription());
 		BMP_CHECK_ERROR(stdout, -1);
-		BMP_WriteFile(bmp, strcat(argv[2],"2"));
 		BMP_Free(bmp);
-	}
-	else if(!strcmp(argv[1], "dec")){
+		
 	}
 	return 0;
 }

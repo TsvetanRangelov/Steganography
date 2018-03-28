@@ -3,12 +3,31 @@
 		<title>Image Upload</title>
 	</head>
 	<body>
-		<h1>Upload Carrier Image</h1>
-		<form action="save_image" method="POST" enctype = "multipart/form-data">
+		<h1>Encode a file</h1>
+		<form action="encode_image" method="POST" enctype = "multipart/form-data">
 			<h2> Carrier Image</h2>
 			<input type="file" name="carrier_file">
 			<h2> Message File</h2>
 			<input type="file" name="message_file">
+			<input type="checkbox" id="rewind" name="rewind">
+			<label for="rewind" >Enable rewind</label>
+			<br>
+			<h2> Sector Size </h2>
+			<input type="number" id = "sectorSize" name="sectorSize" value="8" step="8" max="64" min="8">
+			<label for="sectorSize">  The size of a sector should be a multiple of 8</label>
+			<input type="submit" value="Upload image">
+		</form>
+		<h1>Decode Image</h1>
+		<form action="decode_image" method="POST" enctype = "multipart/form-data">
+			<h2> Carrier Image</h2>
+			<input type="file" name="image_file">
+			<h2> Threshold</h2>
+			<input type="number" id = "threshold" name="threshold" max="111" min=0>
+			<label for="threshold">  Threshold should be between 0 and 111</label>
+			<br>
+			<h2> Sector Size </h2>
+			<input type="number" id = "sectorSize" name="sectorSize" value="8" step="8" max="64" min= "8">
+			<label for="sectorSize">  The size of a sector should be a multiple of 8</label>
 			<input type="submit" value="Upload image">
 		</form>
 	</body>
